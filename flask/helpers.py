@@ -15,7 +15,6 @@ import pkgutil
 import posixpath
 import mimetypes
 from time import time
-from zlib import adler32
 from threading import RLock
 from werkzeug.routing import BuildError
 from functools import update_wrapper
@@ -39,7 +38,7 @@ from jinja2 import FileSystemLoader
 from .signals import message_flashed
 from .globals import session, _request_ctx_stack, _app_ctx_stack, \
      current_app, request
-from ._compat import string_types, text_type, PY2
+from ._compat import string_types
 
 
 # sentinel
@@ -428,8 +427,8 @@ def get_flashed_messages(with_categories=False, category_filter=[]):
 
 
 def send_file(filename_or_fp, mimetype=None, as_attachment=False,
-              attachment_filename=None, add_etags=True,
-              cache_timeout=None, conditional=False, last_modified=None):
+              attachment_filename=None, cache_timeout=None,
+              last_modified=None):
     """Sends the contents of a file to the client.  This will use the
     most efficient method available and configured.  By default it will
     try to use the WSGI server's file_wrapper support.  Alternatively
@@ -459,8 +458,6 @@ def send_file(filename_or_fp, mimetype=None, as_attachment=False,
 
     .. versionchanged:: 0.12
        mimetype guessing and etag support removed for file objects.
-       If no mimetype or attachment_filename is provided, application/octet-stream
-       will be used.
 
     :param filename_or_fp: the filename of the file to send in `latin-1`.
                            This is relative to the :attr:`~Flask.root_path`
@@ -471,14 +468,11 @@ def send_file(filename_or_fp, mimetype=None, as_attachment=False,
                            file pointer is positioned at the start of data to
                            send before calling :func:`send_file`.
     :param mimetype: the mimetype of the file if provided, otherwise
-                     auto detection happens.
+                     `application/octet-stream`.
     :param as_attachment: set to ``True`` if you want to send this file with
                           a ``Content-Disposition: attachment`` header.
     :param attachment_filename: the filename for the attachment if it
                                 differs from the file's filename.
-    :param add_etags: set to ``False`` to disable attaching of etags.
-    :param conditional: set to ``True`` to enable conditional responses.
-
     :param cache_timeout: the timeout in seconds for the headers. When ``None``
                           (default), this value is set by
                           :meth:`~Flask.get_send_file_max_age` of
@@ -493,7 +487,7 @@ def send_file(filename_or_fp, mimetype=None, as_attachment=False,
         file = None
     else:
         file = filename_or_fp
-        filename = getattr(file, 'name', None)
+        filename = None
 
     if filename is not None:
         if not os.path.isabs(filename):
@@ -541,28 +535,6 @@ def send_file(filename_or_fp, mimetype=None, as_attachment=False,
         rv.cache_control.max_age = cache_timeout
         rv.expires = int(time() + cache_timeout)
 
-    if add_etags and filename is not None and file is None:
-        from warnings import warn
-
-        try:
-            rv.set_etag('%s-%s-%s' % (
-                os.path.getmtime(filename),
-                os.path.getsize(filename),
-                adler32(
-                    filename.encode('utf-8') if isinstance(filename, text_type)
-                    else filename
-                ) & 0xffffffff
-            ))
-        except OSError:
-            warn('Access %s failed, maybe it does not exist, so ignore etags in '
-                 'headers' % filename, stacklevel=2)
-
-        if conditional:
-            rv = rv.make_conditional(request)
-            # make sure we don't send x-sendfile for servers that
-            # ignore the 304 status code for x-sendfile.
-            if rv.status_code == 304:
-                rv.headers.pop('x-sendfile', None)
     return rv
 
 

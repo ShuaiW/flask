@@ -19,7 +19,21 @@ providing the ``--upgrade`` parameter::
 
     $ pip install --upgrade Flask
 
-.. _upgrading-to-10:
+.. _upgrading-to-012:
+
+Version 0.12
+------------
+
+- MIME-type guessing, automatic ETag support and filename-detection have been
+  removed from ``send_file``. They were unreliable with special file objects.
+  You can use something like this as replacement::
+
+      response = send_file(..., mimetype='foo/bar')
+      response.set_etag(...)
+      response.make_conditional(request)
+      return response
+
+.. _upgrading-to-011:
 
 Version 0.11
 ------------

@@ -457,7 +457,8 @@ def send_file(filename_or_fp, mimetype=None, as_attachment=False,
        cache_timeout pulls its default from application config, when None.
 
     .. versionchanged:: 0.12
-       mimetype guessing and etag support removed for file objects.
+       mimetype guessing and etag support removed for file objects. The
+       `add_etags` and `conditional` parameters were removed.
 
     :param filename_or_fp: the filename of the file to send in `latin-1`.
                            This is relative to the :attr:`~Flask.root_path`
@@ -492,8 +493,6 @@ def send_file(filename_or_fp, mimetype=None, as_attachment=False,
     if filename is not None:
         if not os.path.isabs(filename):
             filename = os.path.join(current_app.root_path, filename)
-    if mimetype is None and (filename or attachment_filename):
-        mimetype = mimetypes.guess_type(filename or attachment_filename)[0]
     if mimetype is None:
         mimetype = 'application/octet-stream'
 
@@ -604,7 +603,6 @@ def send_from_directory(directory, filename, **options):
             raise NotFound()
     except (TypeError, ValueError):
         raise BadRequest()
-    options.setdefault('conditional', True)
     return send_file(filename, **options)
 
 

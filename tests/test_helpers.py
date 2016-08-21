@@ -331,7 +331,6 @@ class TestSendfile(object):
         with app.test_request_context():
             rv = flask.send_file('static/index.html')
             assert rv.direct_passthrough
-            assert rv.mimetype == 'text/html'
             with app.open_resource('static/index.html') as f:
                 rv.direct_passthrough = False
                 assert rv.data == f.read()
@@ -346,7 +345,6 @@ class TestSendfile(object):
             assert 'x-sendfile' in rv.headers
             assert rv.headers['x-sendfile'] == \
                 os.path.join(app.root_path, 'static/index.html')
-            assert rv.mimetype == 'text/html'
             rv.close()
 
     def test_send_file_last_modified(self):
@@ -361,6 +359,22 @@ class TestSendfile(object):
         rv = c.get('/')
         assert rv.last_modified == last_modified
 
+    def test_send_file_filename(self):
+        app = flask.Flask(__name__)
+        app.use_x_sendfile = True
+
+        with app.test_request_context():
+            for fname in (
+                os.path.join(app.root_path, 'static/index.html'),
+                'static/index.html'
+            ):
+                rv = flask.send_file(fname)
+                assert rv.mimetype == 'application/octet-stream'
+                assert 'x-sendfile' in rv.headers
+                assert rv.headers['x-sendfile'] == \
+                    os.path.join(app.root_path, 'static/index.html')
+                rv.close()
+
     def test_send_file_object(self):
         app = flask.Flask(__name__)
 
@@ -370,21 +384,17 @@ class TestSendfile(object):
                 rv.direct_passthrough = False
                 with app.open_resource('static/index.html') as f:
                     assert rv.data == f.read()
+                assert rv.mimetype == 'application/octet-stream'
+                rv.close()
+
+            with open(os.path.join(app.root_path, 'static/index.html'), mode='rb') as f:
+                rv = flask.send_file(f, mimetype='text/html')
+                rv.direct_passthrough = False
+                with app.open_resource('static/index.html') as f:
+                    assert rv.data == f.read()
                 assert rv.mimetype == 'text/html'
                 rv.close()
 
-        app.use_x_sendfile = True
-
-        with app.test_request_context():
-            with open(os.path.join(app.root_path, 'static/index.html')) as f:
-                rv = flask.send_file(f)
-                assert rv.mimetype == 'text/html'
-                assert 'x-sendfile' in rv.headers
-                assert rv.headers['x-sendfile'] == \
-                    os.path.join(app.root_path, 'static/index.html')
-                rv.close()
-
-        app.use_x_sendfile = False
         with app.test_request_context():
             f = StringIO('Test')
             rv = flask.send_file(f)
@@ -403,7 +413,7 @@ class TestSendfile(object):
             rv = flask.send_file(f)
             rv.direct_passthrough = False
             assert rv.data == b'Test'
-            assert rv.mimetype == 'text/plain'
+            assert rv.mimetype == 'application/octet-stream'
             rv.close()
 
             f = StringIO('Test')
@@ -424,15 +434,6 @@ class TestSendfile(object):
     def test_attachment(self):
         app = flask.Flask(__name__)
         with app.test_request_context():
-            with open(os.path.join(app.root_path, 'static/index.html')) as f:
-                rv = flask.send_file(f, as_attachment=True)
-                value, options = \
-                    parse_options_header(rv.headers['Content-Disposition'])
-                assert value == 'attachment'
-                rv.close()
-
-        with app.test_request_context():
-            assert options['filename'] == 'index.html'
             rv = flask.send_file('static/index.html', as_attachment=True)
             value, options = parse_options_header(rv.headers['Content-Disposition'])
             assert value == 'attachment'
@@ -441,9 +442,7 @@ class TestSendfile(object):
 
         with app.test_request_context():
             rv = flask.send_file(StringIO('Test'), as_attachment=True,
-                                 attachment_filename='index.txt',
-                                 add_etags=False)
-            assert rv.mimetype == 'text/plain'
+                                 attachment_filename='index.txt')
             value, options = parse_options_header(rv.headers['Content-Disposition'])
             assert value == 'attachment'
             assert options['filename'] == 'index.txt'
